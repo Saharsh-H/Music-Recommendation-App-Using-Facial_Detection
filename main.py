@@ -4,26 +4,33 @@ import cv2
 from deepface import DeepFace
 import pandas as pd
 import threading
+import os
 
 # --- Configuration ---
-CSV_PATH = 'Songs Dataset.csv'
+# Build path relative to script location
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CSV_FILENAME = 'Songs Dataset.csv'
+CSV_PATH = os.path.join(BASE_DIR, CSV_FILENAME)
 RECOMMEND_LIMIT = 5
 
 # --- Load and Prepare Dataset ---
 try:
     songs_df = pd.read_csv(CSV_PATH)
-    # Normalize mood column for matching
     songs_df['mood_norm'] = songs_df['mood'].str.lower()
+    if songs_df.empty:
+        raise ValueError("Dataset is empty.")
 except Exception as e:
     songs_df = None
-    print(f"Failed to load dataset: {e}")
+    # Show error when GUI starts
+    load_error_msg = f"Failed to load dataset '{CSV_FILENAME}': {e}"
+else:
+    load_error_msg = None
 
 # --- Recommend Songs from CSV ---
 def recommend_songs_by_mood_csv(mood, limit=RECOMMEND_LIMIT):
     if songs_df is None:
         return []
 
-    # Map detected emotion to dataset mood values
     mood_map = {
         'happy': 'happy',
         'sad': 'sad',
@@ -34,15 +41,12 @@ def recommend_songs_by_mood_csv(mood, limit=RECOMMEND_LIMIT):
         'disgust': 'energetic'
     }
     key = mood_map.get(mood.lower(), 'happy')
-
-    # Filter and sort by popularity
     filtered = songs_df[songs_df['mood_norm'] == key]
     sorted_df = filtered.sort_values('popularity', ascending=False)
     top = sorted_df.head(limit)
 
     recommendations = []
     for _, row in top.iterrows():
-        # artists column is a stringified list
         try:
             artists = eval(row['artists']) if isinstance(row['artists'], str) else row['artists']
             artist = artists[0] if artists else 'Unknown'
@@ -90,6 +94,10 @@ class MoodRecommenderApp(ctk.CTk):
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
 
+        # If dataset load failed, alert user
+        if load_error_msg:
+            messagebox.showerror("Dataset Load Error", load_error_msg)
+
         # Layout configuration
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=1)
@@ -106,6 +114,8 @@ class MoodRecommenderApp(ctk.CTk):
         control.grid_columnconfigure(0, weight=1)
         self.scan_btn = ctk.CTkButton(control, text="Scan Mood & Recommend", command=self.start_scan)
         self.scan_btn.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
+        if songs_df is None:
+            self.scan_btn.configure(state="disabled")
 
         # Output
         output = ctk.CTkFrame(self, corner_radius=10)
