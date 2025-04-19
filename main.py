@@ -1,58 +1,115 @@
-import cv2
-from deepface import DeepFace
-import json
 import random
+from deepface import DeepFace
+import spotipy
+from spotipy.oauth2 import SpotifyClientCredentials
 
-# Load the local song database
-def load_song_database(path="songs.json"):
-    with open(path, "r") as f:
-        return json.load(f)
+# --- Spotify Setup ---
+SPOTIFY_CLIENT_ID = '1319252fa7ac404ebbfa10aefd5329a0'
+SPOTIFY_CLIENT_SECRET = 'c4403e64a77447d0958420a1498be20e'
 
-# Recommend songs by matching mood to tags
-def recommend_songs(mood, songs_db, limit=5):
-    mood = mood.lower()
-    matching_songs = [song for song in songs_db if mood in song["tags"]]
-    if not matching_songs:
-        print("No direct matches found. Showing random songs instead.")
-        return random.sample(songs_db, k=min(limit, len(songs_db)))
-    return random.sample(matching_songs, k=min(limit, len(matching_songs)))
+sp = spotipy.Spotify(
+    auth_manager=SpotifyClientCredentials(
+        client_id=SPOTIFY_CLIENT_ID,
+        client_secret=SPOTIFY_CLIENT_SECRET
+    )
+)
 
-# Capture image from webcam
-def capture_face(filename="captured_face.jpg"):
-    cap = cv2.VideoCapture(0)
-    print("Press 's' to scan your face.")
-    while True:
-        ret, frame = cap.read()
-        cv2.imshow("Press 's' to capture", frame)
-        if cv2.waitKey(1) & 0xFF == ord("s"):
-            cv2.imwrite(filename, frame)
-            break
-    cap.release()
-    cv2.destroyAllWindows()
-    return filename
+# --- Mood-to-Genre and Valence Mapping ---
+mood_genre_map = {
+    'happy': ['happy', 'dance', 'edm'],
+    'sad': ['sad', 'acoustic', 'blues'],
+    'angry': ['metal', 'hard-rock', 'rock'],
+    'surprise': ['electronic', 'indie', 'alternative'],
+    'fear': ['ambient', 'minimal-techno'],
+    'disgust': ['garage', 'grunge', 'punk-rock'],
+    'neutral': ['classical', 'ambient', 'chill']
+}
 
-# Analyze mood using DeepFace
-def detect_mood(image_path):
-    print("Analyzing mood...")
+# Target valence values for emotions
+valence_map = {
+    'happy': 0.9,
+    'sad': 0.2,
+    'angry': 0.3,
+    'surprise': 0.7,
+    'fear': 0.1,
+    'disgust': 0.2,
+    'neutral': 0.5
+}
+
+# --- Mood Detection ---
+def detect_mood(image_path: str) -> str:
+    """
+    Analyze the image and return the dominant emotion.
+    """
     try:
-        analysis = DeepFace.analyze(img_path=image_path, actions=["emotion"], enforce_detection=False)
-        mood = analysis[0]["dominant_emotion"]
-        print(f"Detected Mood: {mood}")
+        analysis = DeepFace.analyze(
+            img_path=image_path,
+            actions=['emotion'],
+            enforce_detection=False
+        )
+        mood = analysis[0]['dominant_emotion'].lower()
+        print(f"[INFO] Detected mood: {mood}")
         return mood
     except Exception as e:
-        print("Error in mood detection:", e)
-        return None
+        print(f"[ERROR] Mood detection failed: {e}")
+        return 'neutral'
 
-# Main
-def main():
-    songs_db = load_song_database()
-    face_image = capture_face()
-    mood = detect_mood(face_image)
-    if mood:
-        recommendations = recommend_songs(mood, songs_db)
-        print("\n🎵 Recommended Songs:")
-        for song in recommendations:
-            print(f"- {song['title']} by {song['artist']}")
+# --- Recommendation Logic ---
+def get_songs_for_mood(mood: str, limit: int = 5) -> list:
+    """
+    Fetch recommended tracks from Spotify based on the given mood,
+    filter by audio feature valence, and return top `limit` songs with
+    title, cover image URL, and Spotify link.
+    """
+    # Choose genres and target valence
+    genres = mood_genre_map.get(mood, ['pop'])
+    target_valence = valence_map.get(mood, 0.5)
+    seed_genre = random.choice(genres)
+    print(f"[INFO] Using seed genre: {seed_genre}, target valence: {target_valence}")
 
-if __name__ == "__main__":
-    main()
+    # Get raw recommendations (fetch extra for filtering)
+    raw = sp.recommendations(seed_genres=[seed_genre], limit=limit * 3)
+    tracks = raw.get('tracks', [])
+
+    # Score by closeness to target valence + energy
+    scored = []
+    for track in tracks:
+        feat = sp.audio_features(track['id'])[0]
+        if feat:
+            valence_diff = abs(feat['valence'] - target_valence)
+            energy_diff = abs(feat['energy'] - 0.5)  # secondary filter
+            score = valence_diff + energy_diff
+            scored.append((score, track))
+
+    # Sort and select top
+    scored.sort(key=lambda x: x[0])
+    selected = [t for _, t in scored[:limit]]
+
+    # Format output with title, cover image, and link
+    recommendations = []
+    for t in selected:
+        title = t['name']
+        cover_url = ''
+        # Extract first cover image if available
+        if t.get('album') and t['album'].get('images'):
+            cover_url = t['album']['images'][0]['url']
+        spotify_link = t['external_urls']['spotify']
+        recommendations.append({
+            'title': title,
+            'cover_url': cover_url,
+            'url': spotify_link
+        })
+
+    return recommendations
+
+# --- For direct invocation ---
+if __name__ == '__main__':
+    import sys
+    from utils import capture_face_image
+
+    image_path = sys.argv[1] if len(sys.argv) > 1 else capture_face_image()
+    mood = detect_mood(image_path)
+    recs = get_songs_for_mood(mood)
+    print("\n🎵 Recommendations:")
+    for s in recs:
+        print(f"- {s['title']}\n  Cover: {s['cover_url']}\n  Link: {s['url']}\n")
