@@ -73,28 +73,47 @@ class SpotifyMoodApp(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Spotify Mood Recommender")
-        self.geometry("600x500")
+        self.geometry("600x550")
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
 
-        self.sp = None
+        # Main Container
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
 
-        self.auth_btn = ctk.CTkButton(self, text="Authenticate Spotify", command=self.auth_flow)
-        self.auth_btn.pack(pady=10)
+        # Header Frame
+        header_frame = ctk.CTkFrame(self, corner_radius=10)
+        header_frame.grid(row=0, column=0, padx=20, pady=(20, 10), sticky="ew")
+        header_frame.grid_columnconfigure(0, weight=1)
+        ctk.CTkLabel(header_frame, text="🎵 Spotify Mood Recommender 🎵", font=(None, 20, "bold")).grid(row=0, column=0, pady=10)
 
-        self.scan_btn = ctk.CTkButton(self, text="Scan Mood & Recommend", state="disabled", command=self.start_scan)
-        self.scan_btn.pack(pady=10)
+        # Control Frame
+        control_frame = ctk.CTkFrame(self, corner_radius=10)
+        control_frame.grid(row=1, column=0, padx=20, pady=10, sticky="nsew")
+        control_frame.grid_columnconfigure((0,1), weight=1)
 
-        self.output_box = ctk.CTkTextbox(self, width=560, height=300)
-        self.output_box.pack(padx=20, pady=20)
+        self.auth_btn = ctk.CTkButton(control_frame, text="Authenticate Spotify", command=self.auth_flow)
+        self.auth_btn.grid(row=0, column=0, padx=10, pady=10, sticky="ew")
+
+        self.scan_btn = ctk.CTkButton(control_frame, text="Scan Mood & Recommend", state="disabled", command=self.start_scan)
+        self.scan_btn.grid(row=0, column=1, padx=10, pady=10, sticky="ew")
+
+        # Output Frame
+        output_frame = ctk.CTkFrame(self, corner_radius=10)
+        output_frame.grid(row=2, column=0, padx=20, pady=(10, 20), sticky="nsew")
+        output_frame.grid_rowconfigure(1, weight=1)
+        output_frame.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(output_frame, text="Output:", font=(None, 16, "bold")).grid(row=0, column=0, sticky="w", padx=10, pady=(10,0))
+        self.output_box = ctk.CTkTextbox(output_frame, width=560, height=300)
+        self.output_box.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
         self.output_box.configure(state="disabled")
+
+        self.sp = None
 
     def auth_flow(self):
         self.auth_btn.configure(state="disabled")
-        self.output_box.configure(state="normal")
-        self.output_box.delete(1.0, ctk.END)
-        self.output_box.insert(ctk.END, "Opening browser for Spotify authentication...\n")
-        self.output_box.configure(state="disabled")
+        self.log("Opening browser for Spotify authentication...")
 
         oauth = SpotifyOAuth(
             client_id=CLIENT_ID,
@@ -102,10 +121,7 @@ class SpotifyMoodApp(ctk.CTk):
             redirect_uri=REDIRECT_URI,
             scope=SCOPE
         )
-        auth_url = oauth.get_authorize_url()
-        webbrowser.open(auth_url)
-
-        # Get user input on main thread
+        webbrowser.open(oauth.get_authorize_url())
         self.after(100, lambda: self.get_user_input(oauth))
 
     def get_user_input(self, oauth):
@@ -120,25 +136,17 @@ class SpotifyMoodApp(ctk.CTk):
                 code = oauth.parse_response_code(redirect_response)
                 token_info = oauth.get_access_token(code)
                 self.sp = Spotify(auth=token_info['access_token'])
-                self.output_box.configure(state="normal")
-                self.output_box.insert(ctk.END, "Authentication successful! You can now scan.\n")
-                self.output_box.configure(state="disabled")
+                self.log("Authentication successful! You can now scan.")
                 self.scan_btn.configure(state="normal")
             except Exception as e:
                 messagebox.showerror("Auth Error", str(e))
-                self.output_box.configure(state="normal")
-                self.output_box.insert(ctk.END, f"Authentication failed: {e}\n")
-                self.output_box.configure(state="disabled")
+                self.log(f"Authentication failed: {e}")
                 self.auth_btn.configure(state="normal")
-
         threading.Thread(target=finish_auth, daemon=True).start()
 
     def start_scan(self):
         self.scan_btn.configure(state="disabled")
-        self.output_box.configure(state="normal")
-        self.output_box.delete(1.0, ctk.END)
-        self.output_box.insert(ctk.END, "Capturing image... Press 's' in the camera window.\n")
-        self.output_box.configure(state="disabled")
+        self.log("Capturing image... Press 's' in the camera window.")
 
         def scan_flow():
             try:
@@ -148,24 +156,25 @@ class SpotifyMoodApp(ctk.CTk):
                     raise ValueError("No mood detected.")
                 recs = recommend_songs_by_mood(mood, self.sp)
 
-                self.output_box.configure(state="normal")
-                self.output_box.delete(1.0, ctk.END)
-                self.output_box.insert(ctk.END, f"Detected Mood: {mood}\n\nRecommendations:\n")
+                self.log(f"Detected Mood: {mood}\n\nRecommendations:")
                 for idx, t in enumerate(recs, 1):
-                    self.output_box.insert(ctk.END, f"{idx}. {t['title']} by {t['artist']}\n")
+                    line = f"{idx}. {t['title']} by {t['artist']}"
+                    self.log(line)
                     if t['preview_url']:
-                        self.output_box.insert(ctk.END, f"   Preview: {t['preview_url']}\n")
-                    self.output_box.insert(ctk.END, f"   Link: {t['spotify_url']}\n\n")
-                self.output_box.configure(state="disabled")
+                        self.log(f"   Preview: {t['preview_url']}")
+                    self.log(f"   Link: {t['spotify_url']}\n")
             except Exception as e:
                 messagebox.showerror("Error", str(e))
-                self.output_box.configure(state="normal")
-                self.output_box.insert(ctk.END, f"Error: {e}\n")
-                self.output_box.configure(state="disabled")
+                self.log(f"Error: {e}")
             finally:
                 self.scan_btn.configure(state="normal")
-
         threading.Thread(target=scan_flow, daemon=True).start()
+
+    def log(self, message):
+        self.output_box.configure(state="normal")
+        self.output_box.insert(ctk.END, message + "\n")
+        self.output_box.see(ctk.END)
+        self.output_box.configure(state="disabled")
 
 if __name__ == '__main__':
     app = SpotifyMoodApp()
