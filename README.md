@@ -1,30 +1,36 @@
 # Music Recommendation App
-This app is a Music Recommendation App that takes a picture of the user, detects the mood using the trained models, and based on that recommends a couple of songs for the user to listen to.
+Discover songs that vibe with your feelings!
+This application uses real-time facial emotion recognition to detect your mood and recommends music that matches it—because your playlist should feel what you feel.
+
+## Features
+- Real-time webcam capture for mood detection
+- Emotion classification using DeepFace
+- Smart mood-to-music mapping (Happy → Upbeat, Sad → Mellow, etc.)
+- Song recommendations using a Spotify dataset
+- Option to select the number of song suggestions (1–100)
+- Clean, dark-themed GUI built with CustomTkinter
+- In-app logging for emotion status, recommendations, and errors
 
 ## How to use the app
 **Step 1:** Open the main.py file and click on the "Run" button if you are on VS code. If you are using terminal, navigate to the "Music-Recommendation-App-Using-Facial_Detection" directory and type "python main.py"
 
-**Step 2:** 
+**Step 2:** Once the application opens, you'll see a GUI with a button labeled “Scan Mood & Recommend” and an input box for the number of songs you want recommended.
 
-**Step 3:** 
+**Step 3:** Enter the number of songs you want (1–100), then click on the “Scan Mood & Recommend” button. The webcam will open
 
-* Users can search for specific cars, add or delete the number of days required for renting, and then click on add to package which will be confirmed by a popup. 
-
-    
-PS: At any time you can press the "logout" button to exit the app.
+**Step 4:** Press the s key to capture your image, or Esc to cancel. The app will analyze your facial expression using DeepFace to detect your current mood. Based on your mood, it will recommend songs from the dataset that match the detected emotion.
 
 ## Requirements
-* Python, pymongo, CustomTkinter and Tkinter should be installed on your machine.
-* To install CustomTkinter or Tkinter, in your terminal window type "pip install customtkinter", "pip install tk" and "pip install pymongo".
+* Python, CustomTkinter, Deepface and OpenCv should be installed on your machine.
+* To install CustomTkinter or OpenCv, in your terminal window type "pip install customtkinter", "pip install opencv-python" and so on for the other libraries.
+ 
 
-## Features Implemented
-**1. Search Functionality:** Users can enter a source city, destination city and travel date if they want to and then use the search button to find cars/flights/hotels specific to their search.
-![](misc/Feature_1.png)
-
-## Libraries/ Databases used
-1. OpenCV
-2. Deepface
-3. API
+## Libraries/ Datasets used
+1. OpenCV — Webcam image capture
+2. Deepface — Facial emotion detection
+3. Spotify API — Dataset
+4. CustomTkinter — GUI
+5. [Kaggle Spotify Dataset](https://www.kaggle.com/datasets/jg7demon/spotify-dataset-1921-2020-600k-tracks-with-mood/data?utm_source=chatgpt.com&select=MusicMoodFinal.csv)
 
 ## Group Members
 **1. Saharsh S Hiremath:** Worked on 
